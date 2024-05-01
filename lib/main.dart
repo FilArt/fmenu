@@ -34,8 +34,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool dialog = false;
-
   @override
   Widget build(BuildContext context) {
     return const RofiLikeDialog();
@@ -125,7 +123,7 @@ class _RofiLikeDialogState extends State<RofiLikeDialog> {
       itemBuilder: (context, index) {
         return ListTile(
           title: Text(_filteredItems[index].name),
-          subtitle: Text(_filteredItems[index].icon),
+          subtitle: Text(_filteredItems[index].command),
           leading: SizedBox(
             width: 32,
             child: _filteredItems[index].icon.isEmpty
