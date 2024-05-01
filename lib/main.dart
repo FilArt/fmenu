@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 void main(List<String> args) async {
   // kill other fmenu instances
@@ -58,6 +59,17 @@ class DesktopApp {
     String exe = command.split(' ')[0];
     // String args = command.split(' ').sublist(1).join(' ');
     Process.start(exe, []).then((value) => exit(0));
+  }
+
+  getImage() {
+    if (icon.isEmpty) {
+      return null;
+    }
+    if (icon.endsWith('.svg')) {
+      return SvgPicture.file(File(icon));
+    } else {
+      return Image.file(File(icon));
+    }
   }
 }
 
@@ -126,9 +138,7 @@ class _RofiLikeDialogState extends State<RofiLikeDialog> {
           subtitle: Text(_filteredItems[index].command),
           leading: SizedBox(
             width: 32,
-            child: _filteredItems[index].icon.isEmpty
-                ? null
-                : Image.file(File(_filteredItems[index].icon)),
+            child: _filteredItems[index].getImage(),
           ),
           onTap: () {
             Navigator.of(context).pop();
@@ -145,7 +155,7 @@ List<DesktopApp> getApps() {
   final icons = Set.from(iconsDirs.expand((d) => Directory(d)
       .listSync()
       .whereType<File>()
-      .where((e) => e.path.endsWith('.png'))
+      .where((e) => e.path.endsWith('.png') || e.path.endsWith('.svg'))
       .map((e) => e.path)
       .toList()));
   final tempDir = Directory('/usr/share/applications');
@@ -179,9 +189,7 @@ List<DesktopApp> getApps() {
           : icons.firstWhere(
               (element) =>
                   element.contains(icon) &&
-                  (element.endsWith('.png') ||
-                      element.endsWith('.svg') ||
-                      element.endsWith('.xpm')),
+                  (element.endsWith('.png') || element.endsWith('.svg')),
               orElse: () => '');
       apps.add(DesktopApp(name, executable, iconPath));
     }
