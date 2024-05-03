@@ -4,7 +4,7 @@ Rofi-like menu
 # Preview
 ![fmenu preview](screenshots/preview.png)
 
-# Build
+# Build and Install
 ```bash
 flutter build linux --release
 sudo ln -s $(pwd)/build/linux/x64/release/bundle/fmenu /usr/local/bin/fmenu

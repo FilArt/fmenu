@@ -1,20 +1,12 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:fmenu/hooks.dart';
+import 'package:fmenu/menu_item_widget.dart';
+import 'package:fmenu/menu_item.dart';
+import 'package:fmenu/search_field.dart';
+import 'package:fmenu/utils.dart';
 
 void main(List<String> args) async {
-  // kill other fmenu instances
-  String pids = Process.runSync('pidof', ['fmenu']).stdout;
-  List<int> pidList = pids.split(' ').map((e) => int.parse(e)).toList();
-  for (int _pid in pidList) {
-    if (pid == _pid) continue;
-    Process.killPid(_pid, ProcessSignal.sigterm);
-  }
-
-  WidgetsFlutterBinding.ensureInitialized();
-
+  preInit();
   runApp(const MyApp());
 }
 
@@ -23,80 +15,36 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(home: const HomeScreen(), theme: ThemeData.dark());
+    return MaterialApp(home: const Fmenu(), theme: ThemeData.dark());
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class Fmenu extends StatefulWidget {
+  const Fmenu({super.key});
 
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  FmenuState createState() => FmenuState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  @override
-  Widget build(BuildContext context) {
-    return const RofiLikeDialog();
-  }
-}
-
-class RofiLikeDialog extends StatefulWidget {
-  const RofiLikeDialog({super.key});
-
-  @override
-  _RofiLikeDialogState createState() => _RofiLikeDialogState();
-}
-
-// class for application: with name, executable and icon
-class DesktopApp {
-  String name;
-  String command;
-  String icon;
-  DesktopApp(this.name, this.command, this.icon);
-
-  void run() {
-    String exe = command.split(' ')[0];
-    // String args = command.split(' ').sublist(1).join(' ');
-    Process.start(exe, []).then((value) => exit(0));
-  }
-
-  getImage() {
-    if (icon.isEmpty) {
-      return null;
-    }
-    if (icon.endsWith('.svg')) {
-      return SvgPicture.file(File(icon));
-    } else {
-      return Image.file(File(icon));
-    }
-  }
-}
-
-class _RofiLikeDialogState extends State<RofiLikeDialog> {
-  final TextEditingController _controller = TextEditingController();
-  final List<DesktopApp> _allItems = [];
-  List<DesktopApp> _filteredItems = [];
+class FmenuState extends State<Fmenu> {
+  final TextEditingController _searchController = TextEditingController();
+  final List<MenuItem> _allItems = [];
+  List<MenuItem> _filteredItems = [];
 
   @override
   void initState() {
     super.initState();
-    _allItems.addAll(getApps());
+    _allItems.addAll(getMenuItems());
     _filteredItems = _allItems;
   }
 
   void _filterItems(String enteredKeyword) {
-    List<DesktopApp> results = [];
-    if (enteredKeyword.isEmpty) {
-      results = _allItems;
-    } else {
-      results = _allItems
-          .where((item) =>
-              item.name.toLowerCase().contains(enteredKeyword.toLowerCase()))
-          .toList();
-    }
+    final search = enteredKeyword.toLowerCase().trim();
     setState(() {
-      _filteredItems = results;
+      _filteredItems = (_allItems.where((item) =>
+          item.name.toLowerCase().contains(search) ||
+          (item.command != null &&
+              item.command!.toLowerCase().contains(search)))).toList();
     });
   }
 
@@ -111,14 +59,10 @@ class _RofiLikeDialogState extends State<RofiLikeDialog> {
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: TextField(
-                autofocus: true,
-                controller: _controller,
-                onChanged: _filterItems,
-                decoration: const InputDecoration(
-                  labelText: 'Search',
-                  suffixIcon: Icon(Icons.search),
-                ),
-              ),
+                  controller: _searchController,
+                  onChanged: (value) => Debouncer(milliseconds: 250).run(() {
+                        _filterItems(value);
+                      })),
             ),
             Expanded(
               child: buildListView(),
@@ -133,67 +77,8 @@ class _RofiLikeDialogState extends State<RofiLikeDialog> {
       shrinkWrap: true,
       itemCount: _filteredItems.length,
       itemBuilder: (context, index) {
-        return ListTile(
-          title: Text(_filteredItems[index].name),
-          subtitle: Text(_filteredItems[index].command),
-          leading: SizedBox(
-            width: 32,
-            child: _filteredItems[index].getImage(),
-          ),
-          onTap: () {
-            Navigator.of(context).pop();
-            _filteredItems[index].run();
-          },
-        );
+        return MenuItemWidget(menuItem: _filteredItems[index]);
       },
     );
   }
-}
-
-List<DesktopApp> getApps() {
-  final iconsDirs = ['/usr/share/icons', '/usr/share/pixmaps'];
-  final icons = Set.from(iconsDirs.expand((d) => Directory(d)
-      .listSync()
-      .whereType<File>()
-      .where((e) => e.path.endsWith('.png') || e.path.endsWith('.svg'))
-      .map((e) => e.path)
-      .toList()));
-  final tempDir = Directory('/usr/share/applications');
-  final apps = <DesktopApp>[];
-  for (final entity in tempDir.listSync(recursive: true)) {
-    if (entity is! File || !entity.path.endsWith('.desktop')) continue;
-    final content = entity.readAsStringSync();
-    final lines = LineSplitter.split(content);
-    String? name, executable, icon;
-    for (final line in lines) {
-      final parts = line.split('=');
-      if (parts.length != 2) continue;
-      final key = parts[0];
-      final value = parts[1].trim();
-      switch (key) {
-        case 'Name':
-          name = value;
-          break;
-        case 'Exec':
-          executable = value;
-          break;
-        case 'Icon':
-          icon = value;
-          break;
-      }
-      if (name != null && executable != null && icon != null) break;
-    }
-    if (name != null && executable != null) {
-      final iconPath = icon == null
-          ? ''
-          : icons.firstWhere(
-              (element) =>
-                  element.contains(icon) &&
-                  (element.endsWith('.png') || element.endsWith('.svg')),
-              orElse: () => '');
-      apps.add(DesktopApp(name, executable, iconPath));
-    }
-  }
-  apps.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-  return apps;
 }
